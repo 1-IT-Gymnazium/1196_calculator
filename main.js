@@ -4,21 +4,10 @@ class CalculatorEngine {
     this.memory = 0;        // Hodnota v paměti kalkulačky
     this.history = [];      // Historie výpočtů
   }
-  
-  // Vypočítá výraz bez uložení do historie
-  compute(raw) {
-    return this.eval(raw); 
-  }
 
   // Vypočítá výraz s uložením do historie
   evaluate(raw) {
-    const r = this.eval(raw);
-    this._addHistory(raw + ' = ' + r);
-    return r;
-  }
-
-  eval(raw) {
-    if (!raw || raw.trim() === '') throw new Error('Chybný výraz kód 1');
+    if (!raw || raw.trim() === '') throw new Error('Nebyl zadán žádný vstup.');
 
     let expr = raw;
 
@@ -37,12 +26,11 @@ class CalculatorEngine {
       .replace(/\^/g, '**')                               // mocnina
       .replace(/(-?\d+(?:\.\d+)?)!/g, 'factorial($1)')    // faktoriál
       .replace(/\blog\(/g, 'math.log10(')                 // přirozený logaritmus
-      .replace(/\bsin\(/g, 'math.sin(')                   // sin
-      .replace(/\bcos\(/g, 'math.cos(')                   // cos
-      .replace(/\btan\(/g, 'math.tan(');                  // tan
+      .replace(/\bsin\(/g, 'math.sin(')                   // sin ve stupních
+      .replace(/\bcos\(/g, 'math.cos(')                   // cos ve stupních
+      .replace(/\btan\(/g, 'math.tan(');                  // tan ve stupních
 
-    // Lokální implementace faktoriálu
-    /* ---- 1) funkce gamma (Lanczos, 9 členů) ---- */
+    // Faktoriál 1) část - funkce gamma (Lanczos, 9 členů)
     const gamma = z => {
       const g = 7;
       const p = [
@@ -70,27 +58,26 @@ class CalculatorEngine {
       return Math.sqrt(2 * Math.PI) * Math.pow(t, z + 0.5) * Math.exp(-t) * x;
     };
 
-    /* ---- 2) faktoriál pro libovolné kladné n ---- */
+    // Faktoriál 2) část - kladné n
     const factorial = n => {
       if (!isFinite(n)) throw new Error('Neplatný vstup');
       if (Number.isInteger(n)) {
-        if (n < 0) throw new Error('Faktoriál záporného celého čísla není definován');
-        /* přesný celočíselný výpočet do 170!, pak už přeteče JS float */
+        if (n < 0) throw new Error('Faktoriál záporného celého čísla není definován 0');
+        // přesný celočíselný výpočet do 170!, pak už přeteče JS float
         if (n <= 170) {
           let r = 1;
           for (let i = 2; i <= n; i++) r *= i;
           return r;
         }
-        /* pro větší hodnoty použij Gamma */
+        // Větší hodnoty - Gamma
       } else if (n < 0 && Math.floor(n) === n) {
         /* záporný celý ⇒ pól Γ, chyba */
-        throw new Error('Faktoriál záporného celého čísla není definován');
+        throw new Error('Faktoriál záporného celého čísla není definován 1');
       }
       /* obecný případ: Γ(n+1) */
       return gamma(n + 1);
     };
-      
-  
+
     // Vlastní "math" objekt s upravenými trigonometrickými funkcemi (ve stupních)
     const math = {
       ...Math,
@@ -99,26 +86,28 @@ class CalculatorEngine {
       sin: x => Math.sin(x * Math.PI / 180),
       cos: x => Math.cos(x * Math.PI / 180),
       tan: x => {
-        const c = Math.cos(x * Math.PI / 180);
-        if (Math.abs(c) < 1e-10) throw new Error('Chybný výraz kód 3');
+        const cos = Math.cos(x * Math.PI / 180);
+        if (Math.abs(cos) < 1e-10) throw new Error('Při výpočetu tangensu došlo k chybě, kosínus je velmi blízko nule.');
         return Math.tan(x * Math.PI / 180);
       }
     };
-    
 
     // Bezpečné vyhodnocení výrazu
     try {
       const res = Function('math', 'factorial', 'return(' + expr + ')')(math, factorial);
-      if (!isFinite(res)) throw 0;
+      
+      // Ne-konečné hodnoty
+      if (!Number.isFinite(res)) {
+        if (res ===  Infinity || res === -Infinity) {
+          throw new Error('Nulou nelze dělit.');
+        }
+        throw new Error('Neplatný výraz.'); // NaN
+      }
+
       return res;
     } catch(err) {
-      throw new Error('Chybný výraz code 4');
+      throw new Error(err.message || err);
     }
-  }
-  
-  _addHistory(e) {
-    this.history.unshift(e);        // Přidá výraz na začátek historie
-    if (this.history.length > 10) this.history.pop(); // Udržuje max. 10 záznamů
   }
   
   // Funkce pro práci s pamětí kalkulačky
@@ -134,29 +123,51 @@ function insertAtCursor(el, txt) {
     el.value = el.value.slice(0, s) + txt + el.value.slice(e);
     el.selectionStart = el.selectionEnd = s + txt.length;
 }
-  
+
 // Inicializace kalkulačky – obsluhuje UI a propojení s enginem
 export function initCalculator() {
   const eng = new CalculatorEngine();
   const input = document.getElementById('current');
   const prev = document.getElementById('preview');
   const hist = document.getElementById('history');
-  let lastEq = false;
 
-  const auto = () => { // Automatické přizpůsobení výšky vstupu
+  const pressedMap = new Map(); // Mapa stisknutých kláves
+  let lastEq = false; // Je číslo v textovém poli výsledek?
+  let errorMode = false; // Je výsledek chyba?
+
+  // Zobrazení chybu v textovém poli.
+  function onError(err) {
+    input.value = err.message || err;
+    errorMode = true;
+    lastEq = false;
+    prev.textContent = '';
+    input.classList.add('error');
+  }
+
+  // Smaže chybovou zprávu při stisknutí klávesy
+  function clearError () {
+    input.classList.remove('error');
+    input.value = '';
+    errorMode = false;
+  }
+
+  // Automatické přizpůsobení výšky vstupu
+  const auto = () => {
     input.style.height = 'auto';
     input.style.height = input.scrollHeight + 'px';
   };
 
-  const showPrev = () => { // Zobrazí předběžný výsledek
+  // Zobrazení předběžného výsledku
+  const showPrev = () => {
     try {
-      prev.textContent = '→ ' + eng.compute(input.value);
+      prev.textContent = '→ ' + eng.evaluate(input.value);
     } catch {
       prev.textContent = '';
     }
   };
 
-  const refreshHist = () => { // Obnoví seznam historie
+  // History refresh
+  const refreshHist = () => {
     hist.innerHTML = '';
     eng.history.forEach(h => {
       const li = document.createElement('li');
@@ -168,6 +179,7 @@ export function initCalculator() {
   // Obsluha kliknutí na tlačítka
   document.querySelector('.calculator').addEventListener('click', e => {
     if (!e.target.matches('button')) return;
+    if (errorMode) clearError();
 
     const act = e.target.dataset.action;
     const val = e.target.textContent;
@@ -194,12 +206,15 @@ export function initCalculator() {
       switch (act) {
         case 'equals':
           try {
-            input.value = eng.evaluate(input.value).toString();
+            const vysledek = eng.evaluate(input.value); // Vypočítá výsledek
+            eng.history.unshift(input.value + ' = ' + vysledek); // Přidá výraz na začátek historie
+            if (eng.history.length > 10) eng.history.pop(); // Udržuje max. 10 záznamů
+            input.value = vysledek.toString(); // Zobrazí výsledek
             lastEq = true;
             refreshHist();
             prev.textContent = '';
           } catch (err) {
-            alert(err.message);
+            onError(err);
           }
           break;
         case 'clear-all':
@@ -238,6 +253,7 @@ export function initCalculator() {
   input.addEventListener('input', () => {
     auto();
     lastEq = false;
+    errorMode = false
     showPrev();
   });
   // Zkopírování výsledku do schránky při kliknutí na výsledek
@@ -250,19 +266,42 @@ export function initCalculator() {
         });
       }
   });
-
-  // Klávesové zkratky pro enter a escape
-  input.addEventListener('keydown', e => {
+  
+  // Detekce stisknutí klávesy
+  document.addEventListener('keydown', e => {
+    if (errorMode) clearError();
     if (lastEq && /^[0-9.]$/.test(e.key)) {
       input.value = '';
       lastEq = false;
     }
-    if (e.key === 'Enter') {
+
+    // Vizualizace digitální klávesy při stisku fyzické klávesy
+    const btn = document.querySelector(`
+      .calculator button[data-key="${e.key}"],
+      .calculator button[data-key-alt="${e.key}"]`
+    );
+
+    if (btn && !pressedMap.has(e.code)) {
+      btn.classList.add('pressed');
+      pressedMap.set(e.code, btn);
+    }
+
+    // Akce při stisknutí kláves, které nezadávají text
+    if (e.key === 'Enter' || e.key === '=') {
       e.preventDefault();
       document.querySelector('[data-action="equals"]').click();
     } else if (e.key === 'Escape') {
       e.preventDefault();
       document.querySelector('[data-action="clear-all"]').click();
+    }
+  });
+
+  // Detekce puštění klávesy pro vizualizaci na digitální klávesnici
+  document.addEventListener('keyup', e => {
+    const btn = pressedMap.get(e.code);
+    if (btn) {
+      btn.classList.remove('pressed');
+      pressedMap.delete(e.code);
     }
   });
 

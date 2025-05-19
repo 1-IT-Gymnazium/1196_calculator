@@ -12,7 +12,7 @@
       <div class="display-row">
         <textarea id="current" autocomplete="off" autofocus placeholder="Zadejte výraz..."></textarea>
         <div class="button-column">
-          <button class="delete-btn" data-action="delete" aria-label="Odstranit">⌫</button>
+          <button class="delete-btn" data-action="delete" data-key="Backspace" aria-label="Odstranit">⌫</button>
           <button class="copy-btn" data-action="copy" aria-label="Kopírovat">📋</button>
         </div>
         <div id="preview" class="preview"></div>
@@ -22,20 +22,40 @@
         <button data-action="memory-minus">M-</button>
         <button data-action="memory-add">M+</button>
         <button data-action="memory-clear">MC</button>
-        <button data-action="clear-all">AC</button>
+        <button data-action="clear-all" data-key="Escape">AC</button>
       </div>
       <div class="buttons-grid">
-        <button data-action="paren">(</button>
-        <button data-action="paren">)</button>
+        <button data-action="paren" data-key="(">(</button>
+        <button data-action="paren" data-key=")">)</button>
         <button data-action="function">log</button>
         <button data-action="operator">√</button>
-        <button data-action="operator">^</button>
-        <!-- numerické a funkční tlačítka -->
-        <button>7</button><button>8</button><button>9</button><button data-action="operator">/</button><button data-action="function">sin</button>
-        <button>4</button><button>5</button><button>6</button><button data-action="operator">*</button><button data-action="function">cos</button>
-        <button>1</button><button>2</button><button>3</button><button data-action="operator">-</button><button data-action="function">tan</button>
-        <button>.</button><button>0</button><button data-action="equals">=</button><button data-action="operator">+</button><button data-action="factorial">!</button>
+        <button data-action="operator" data-key="^">^</button>
+      
+        <button data-key="7">7</button>
+        <button data-key="8">8</button>
+        <button data-key="9">9</button>
+        <button data-action="operator" data-key="/">/</button>
+        <button data-action="function">sin</button>
+      
+        <button data-key="4">4</button>
+        <button data-key="5">5</button>
+        <button data-key="6">6</button>
+        <button data-action="operator" data-key="*">*</button>
+        <button data-action="function">cos</button>
+      
+        <button data-key="1">1</button>
+        <button data-key="2">2</button>
+        <button data-key="3">3</button>
+        <button data-action="operator" data-key="-">-</button>
+        <button data-action="function">tan</button>
+      
+        <button data-key=".">.</button>
+        <button data-key="0">0</button>
+        <button data-action="equals" data-key="Enter" data-key-alt="=">=</button>
+        <button data-action="operator" data-key="+">+</button>
+        <button data-action="factorial" data-key="!">!</button>
       </div>
+      
     </div>
     <div class="history-wrapper">
         <div class="theme-toggle-container">
